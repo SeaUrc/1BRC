@@ -1,0 +1,8 @@
+/benchmark
+/cmake-build-*
+/traces
+100mil.csv
+measurements.csv
+tenmil.csv
+ideas.md
+.DS_Store
