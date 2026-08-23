@@ -1,6 +1,7 @@
 /benchmark
 /cmake-build-*
 /traces
+.idea
 100mil.csv
 measurements.csv
 tenmil.csv
