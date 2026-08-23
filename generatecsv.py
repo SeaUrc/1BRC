@@ -48,8 +48,8 @@ citys = {
 }
 
 cities = list(citys.keys())
-filename = "measurements.csv"
-num_rows = 1000000000
+filename = "100mil.csv"
+num_rows = 100_000_000
 
 with open(filename, mode='w') as file:
     writer = csv.writer(file)

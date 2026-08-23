@@ -581,7 +581,9 @@ void foo5(const std::string &f) {
 }
 
 // multithreaded + mmap + array + manual parsing
+// 13.69s user 16.41s system 180% cpu 16.704 total
 void foo6(const std::string &f) {
+    std::ios_base::sync_with_stdio(false); std::cin.tie(NULL);
     struct stats {
         int min = 1e5;
         int max = -1e5;
@@ -593,8 +595,8 @@ void foo6(const std::string &f) {
         int max = -1e5;
     };
 
-//    around 42 citeis so we get 128/256 as fine number
-    constexpr size_t fixedArrBits = 8;
+    // there are 43 cities and found that with n=10, no collisions occur so no checks are necessary
+    constexpr size_t fixedArrBits = 10;
     constexpr size_t mask = (1 << fixedArrBits)-1;
     constexpr size_t table_size = (1<<fixedArrBits);
 
@@ -626,6 +628,11 @@ void foo6(const std::string &f) {
 
 
     auto readThread = [](size_t i, std::array<Entry, table_size> &m, const char* ptr, const char* end, const char* const eof)->void {
+        int result = pthread_set_qos_class_self_np(QOS_CLASS_UTILITY, 0);
+        if (result != 0) {
+            std::cerr << "Failed to set thread QoS class" << std::endl;
+        }
+
         madvise(const_cast<char*>(ptr), end-ptr, MADV_SEQUENTIAL);
         madvise(const_cast<char*>(ptr), end-ptr, MADV_WILLNEED);
 
@@ -641,13 +648,15 @@ void foo6(const std::string &f) {
         while (ptr < end) {
             const char *start = ptr;
             size_t hashvalue = 1009;
-            while (ptr < end && *ptr != ',') {
+            while (*ptr != ',') {
                 hashvalue = ((hashvalue << 5) + hashvalue) ^ (*ptr);
                 ++ptr;
             }
             hashvalue &= mask;
 
-            std::string_view city(start, reinterpret_cast<std::size_t>(ptr) - reinterpret_cast<std::size_t>(start));
+            const char* const cityEnd = ptr;
+
+
 
 //            {
 //                std::lock_guard<std::mutex> lock(cout_mutex);
@@ -660,7 +669,7 @@ void foo6(const std::string &f) {
             int negative = (*ptr == '-');
             ptr += negative;
 
-            while (ptr < end && *ptr != '.') {
+            while (*ptr != '.') {
                 value = value * 10 + (*ptr - '0');
                 ++ptr;
             }
@@ -675,28 +684,21 @@ void foo6(const std::string &f) {
             int tmpMask = -negative;
             value = (value ^ tmpMask) - tmpMask;
 
-            while (ptr < end && *ptr != '\n') {
-                ++ptr;
+            Entry &s = m[hashvalue];
+            if (s.city.empty()){
+                s.city = std::string_view(start, cityEnd-start);
             }
+            s.max = std::max(s.max, value);
+            s.min = std::min(s.min, value);
+
+            // increment past carriage return
             ++ptr;
-
-            while (true) {
-                if (m[hashvalue].city.empty()) {
-                    m[hashvalue].city = city;
-                    break;
-                }
-                if (m[hashvalue].city == city) {
-                    break;
-                }
-                hashvalue = (hashvalue + 1) & mask;
-            }
-
-            m[hashvalue].max = std::max(m[hashvalue].max, value);
-            m[hashvalue].min = std::min(m[hashvalue].min, value);
+            ++ptr;
         }
     };
 
-    const size_t NUM_THREADS = std::thread::hardware_concurrency();
+//    const size_t NUM_THREADS = std::thread::hardware_concurrency();
+    constexpr size_t NUM_THREADS = 16;
 
     std::vector<std::thread> threads; threads.reserve(NUM_THREADS);
     std::vector<std::array<Entry, table_size>> maps(NUM_THREADS);
@@ -722,14 +724,13 @@ void foo6(const std::string &f) {
         }
     }
 
-//    for (const auto& [city, stats] : m) {
-//        std::cout << city << " -> Min: " << static_cast<double>(stats.min)/10.0 << ", Max: " << static_cast<double>(stats.max)/10.0 << "\n";
-//    } std::cout << std::endl;
-//
+    for (const auto& [city, stats] : m) {
+        std::cout << city << " -> Min: " << static_cast<double>(stats.min)/10.0 << ", Max: " << static_cast<double>(stats.max)/10.0 << "\n";
+    } std::cout << std::endl;
+
     close(fd);
 
     munmap(static_cast<void*>(const_cast<char*>(ptr)), memneed);
-
 }
 
 static void BM(benchmark::State& state) {
@@ -738,14 +739,11 @@ static void BM(benchmark::State& state) {
     }
 }
 
-//BENCHMARK(BM)->Iterations(100);
-//BENCHMARK(BM);
-//
-//BENCHMARK_MAIN();
+BENCHMARK(BM)->Iterations(100);
 
-int main() {
-//    foo5("measurements.csv");
-//    foo4("tenmil.csv");
-    foo6("measurements.csv");
-    return 0;
-}
+BENCHMARK_MAIN();
+
+//int main() {
+//    foo6("100mil.csv");
+//    return 0;
+//}
