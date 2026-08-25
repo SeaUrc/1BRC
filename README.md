@@ -32,3 +32,5 @@ For 100 million rows and using time,
 Some interesting things to think about, 
 - the 1 billion rows is ~53x slower than the 100 million rows. Perhaps this has something to do with the fact that 100 mil. csv <8GB while 1bil csv is >8GB. The OS could have somehow cached the file somewhere before.
 - the 1 billion rows had 180% cpu while 100 mil rows has 668% cpu. In a similar vein, threads could be blocked much more by I/O.
+
+On a m5 computer, it ran in around ~10 seconds while the best Java code time ran in ~7 seconds.
